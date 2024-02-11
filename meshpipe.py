@@ -5,10 +5,10 @@
 # Copyright (c) Resilience Theatre, 2024
 # Copyright (c) 2021, datagod
 # 
-# Fifo files:
+# FIFO files:
 #
-# /tmp/meshin  -> meshtastic radio
-# /tmp/meshout <- meshtastic radio
+# /tmp/msgincoming -> meshtastic radio
+# /tmp/msgchannel <- meshtastic radio
 #
 # Run:
 #
@@ -33,6 +33,7 @@ import stat, os
 import math
 import inspect
 import subprocess
+import select
 from meshtastic.mesh_pb2 import _HARDWAREMODEL
 from meshtastic.node import Node
 from pubsub import pub
@@ -46,7 +47,11 @@ DEBUG = False
 
 parser = argparse.ArgumentParser(description=DESCRIPTION)
 parser.add_argument('-p', '--port', type=str, help="meshtastic port (eg. /dev/ttyACM0)")
+ifparser = parser.add_mutually_exclusive_group(required=False)
+ifparser.add_argument('-i', '--host', type=str, help="hostname/ipaddr of the device to connect to over TCP")
 args = parser.parse_args()
+
+
 
 global Interface
 global DeviceStatus
@@ -121,7 +126,7 @@ def onReceive(packet, interface):
     if(Message):
         print('Incoming message:')
         print("{: <20} {: <20}".format(From,Message))
-        fifo_write = open('/tmp/meshout', 'w')
+        fifo_write = open('/tmp/msgchannel', 'w')
         fifo_write.write(Message)
         fifo_write.flush()
 
@@ -172,7 +177,8 @@ def send_msg(interface, Message):
     print('')
 
 def send_msg_from_fifo(interface, Message):
-    interface.sendText(Message, wantAck=False)
+    outMsg = Message + '\n'
+    interface.sendText(outMsg, wantAck=True)
     print("== FIFO Packet SENT ==")
     print("To:      All:")
     print("From:    BaseStation")
@@ -294,27 +300,31 @@ def main():
     BaseLon         = 0
 
     # Check fifo files
-    if not os.path.exists('/tmp/meshin'):
-        print('Missing fifo file: /tmp/meshin')
+    if not os.path.exists('/tmp/msgchannel'):
+        print('Missing fifo file: /tmp/msgchannel')
         sys.exit()
-    if not os.path.exists('/tmp/meshout'):
-        print('Missing fifo file: /tmp/meshout')
+    if not os.path.exists('/tmp/msgincoming'):
+        print('Missing fifo file: /tmp/msgincoming')
         sys.exit()
     
     # Check fifo type
-    if not stat.S_ISFIFO(os.stat('/tmp/meshin').st_mode):
-        print('/tmp/meshin is not fifo file, exiting...')
+    if not stat.S_ISFIFO(os.stat('/tmp/msgchannel').st_mode):
+        print('/tmp/msgchannel is not fifo file, exiting...')
         sys.exit()
-    if not stat.S_ISFIFO(os.stat('/tmp/meshout').st_mode):
-        print('/tmp/meshout is not fifo file, exiting...')
+    if not stat.S_ISFIFO(os.stat('/tmp/msgincoming').st_mode):
+        print('/tmp/msgincoming is not fifo file, exiting...')
         sys.exit()
 
-    print("Connecting to device at port {}".format(args.port))
-    interface = meshtastic.serial_interface.SerialInterface(args.port)
+    if (args.host):
+      print("Connecting to device on host {}".format(args.host))
+      interface = meshtastic.tcp_interface.TCPInterface(args.host)
+    elif (args.port):
+      print("Connecting to device at port {}".format(args.port))
+      interface = meshtastic.serial_interface.SerialInterface(args.port)
 
     # Get node info for connected device
     GetMyNodeInfo(interface)
-    
+
     # subscribe to connection and receive channels
     pub.subscribe(onConnectionEstablished, "meshtastic.connection.established")
     pub.subscribe(onConnectionLost,        "meshtastic.connection.lost")
@@ -323,13 +333,17 @@ def main():
     # Display nodes
     DisplayNodes(interface)
 
-    # Open FIFO 
-    fifo_read = open('/tmp/meshin', 'r')
-    
+    # Open FIFO for reading
+    FIFO = '/tmp/msgincoming'
+
     # Main loop, reads fifo in and sends data over meshtastic
-    while (1==1):
+    fifo_read=open(FIFO,'r')
+
+    while True:
       time.sleep(2)
-      fifo_msg_in=fifo_read.read()
+      print('While loop')
+      fifo_msg_in = fifo_read.readline()[:-1]
+      print('after fifo read')
       if not fifo_msg_in == "":
         print('FIFO Message in: ', fifo_msg_in)
         send_msg_from_fifo(interface,fifo_msg_in)

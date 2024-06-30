@@ -123,11 +123,18 @@ def onReceive(packet, interface):
 
     DecodePacket('MainPacket',packet)
 
+
+    
+
     if(Message):
         print('Incoming message:')
         print("{: <20} {: <20}".format(From,Message))
+        
+        # Take 'From' in hex to reply
+        replyMessage = str(hex(From)[2:]) + "|" + Message
+        
         fifo_write = open('/tmp/msgchannel', 'w')
-        fifo_write.write(Message)
+        fifo_write.write(replyMessage)
         fifo_write.flush()
 
 
@@ -167,6 +174,9 @@ def SIGINT_handler(signal_received, frame):
 
 #
 # Send message functions
+# https://github.com/meshtastic/python/blob/18c2d08bf0ef5c17bf10e6e0d2bde00221bda0e9/meshtastic/mesh_interface.py#L279
+# destinationId
+#
 #
 def send_msg(interface, Message):
     interface.sendText(Message, wantAck=True)
@@ -184,6 +194,16 @@ def send_msg_from_fifo(interface, Message):
     print("From:    BaseStation")
     print('Message: {}'.format(Message))
     print('')
+
+def send_msg_from_fifo_to_one_node(interface, Message, nodeId):
+    outMsg = Message + '\n'
+    interface.sendText(outMsg, wantAck=True,destinationId=nodeId)
+    print("== FIFO Packet to one node SENT ==")
+    print("To:      {}".format(nodeId))
+    print("From:    BaseStation")
+    print('Message: {}'.format(Message))
+    print('')
+
 
 
 def GetMyNodeInfo(interface):
@@ -341,12 +361,23 @@ def main():
 
     while True:
       time.sleep(2)
-      print('While loop')
+      # print('While loop')
       fifo_msg_in = fifo_read.readline()[:-1]
-      print('after fifo read')
+      # print('after fifo read')
       if not fifo_msg_in == "":
         print('FIFO Message in: ', fifo_msg_in)
-        send_msg_from_fifo(interface,fifo_msg_in)
+        # Old method where all goes to all
+        # send_msg_from_fifo(interface,fifo_msg_in)
+        
+        # New method where we parse 'to' and deliver answer only to originating node (who sent 'server')
+        # 7c5a38f8|server|Server got your message
+        answer_array=fifo_msg_in.split("|")
+        answer_recipient = '!'+answer_array[0]
+        answer_payload = answer_array[1]+"|"+answer_array[2]
+        print('answer_recipient', answer_recipient)
+        print('answer_payload', answer_payload)
+        send_msg_from_fifo_to_one_node(interface, answer_payload, answer_recipient)
+        
       else:
         # No fifo data
         pass

@@ -125,8 +125,11 @@ def onReceive(packet, interface):
 
     if(Message):
         print('Incoming message:')
-        print("{: <20} {: <20}".format(From,Message))
-        incomingMessage = str(hex(From)[2:]) + "|" + Message + '\n'
+        # Hex with leading zero
+        hexFrom=f"{From:08X}"
+        print("From: {: <20}".format(hexFrom)) 
+        print("{: <20} {: <20}".format(hexFrom,Message))
+        incomingMessage = str(hexFrom) + "|" + Message + '\n' # 2->1
         fifo_write = open('/tmp/msgchannel', 'w')
         fifo_write.write(incomingMessage)
         fifo_write.flush()

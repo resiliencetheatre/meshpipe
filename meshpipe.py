@@ -109,7 +109,7 @@ def DecodePacket(PacketParent,Packet):
   
 
 #
-# Packet receive
+# Packet receive with 'From' handling
 #
 def onReceive(packet, interface): 
     global PacketsReceived
@@ -123,18 +123,12 @@ def onReceive(packet, interface):
 
     DecodePacket('MainPacket',packet)
 
-
-    
-
     if(Message):
         print('Incoming message:')
         print("{: <20} {: <20}".format(From,Message))
-        
-        # Take 'From' in hex to reply
-        replyMessage = str(hex(From)[2:]) + "|" + Message
-        
+        incomingMessage = str(hex(From)[2:]) + "|" + Message + '\n'
         fifo_write = open('/tmp/msgchannel', 'w')
-        fifo_write.write(replyMessage)
+        fifo_write.write(incomingMessage)
         fifo_write.flush()
 
 
@@ -233,6 +227,10 @@ def GetMyNodeInfo(interface):
 
     if 'id' in TheNode['user']:
       print('User ID:   ',TheNode['user']['id'])
+      server_address=TheNode['user']['id']
+      f = open("/tmp/serveraddress", "w")
+      f.write(server_address[1:])
+      f.close()
 
     if 'batteryLevel' in TheNode['position']:
       print('Battery:   ',TheNode['position']['batteryLevel'])
@@ -366,16 +364,11 @@ def main():
       # print('after fifo read')
       if not fifo_msg_in == "":
         print('FIFO Message in: ', fifo_msg_in)
-        # Old method where all goes to all
-        # send_msg_from_fifo(interface,fifo_msg_in)
-        
         # New method where we parse 'to' and deliver answer only to originating node (who sent 'server')
         # 7c5a38f8|server|Server got your message
         answer_array=fifo_msg_in.split("|")
         answer_recipient = '!'+answer_array[0]
         answer_payload = answer_array[1]+"|"+answer_array[2]
-        print('answer_recipient', answer_recipient)
-        print('answer_payload', answer_payload)
         send_msg_from_fifo_to_one_node(interface, answer_payload, answer_recipient)
         
       else:

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# meshpipe - piping messages to/from FIFO over meshtastic radio
+# meshpipe - server - piping messages to/from FIFO over meshtastic radio
 #
 # Copyright (c) Resilience Theatre, 2024
 # Copyright (c) 2021, datagod

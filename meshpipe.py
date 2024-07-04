@@ -125,7 +125,7 @@ def onReceive(packet, interface):
 
     if(Message):
         print('Incoming message:')
-        # Hex with leading zero
+        # Hex with leading zero (TODO: Check 'server address' write) 
         hexFrom=f"{From:08X}"
         print("From: {: <20}".format(hexFrom)) 
         print("{: <20} {: <20}".format(hexFrom,Message))
@@ -231,6 +231,8 @@ def GetMyNodeInfo(interface):
     if 'id' in TheNode['user']:
       print('User ID:   ',TheNode['user']['id'])
       server_address=TheNode['user']['id']
+      # Store server address for 'meshmail' to read it
+      print('Writing server address:   ',server_address)
       f = open("/tmp/serveraddress", "w")
       f.write(server_address[1:])
       f.close()
@@ -369,10 +371,18 @@ def main():
         print('FIFO Message in: ', fifo_msg_in)
         # New method where we parse 'to' and deliver answer only to originating node (who sent 'server')
         # 7c5a38f8|server|Server got your message
+        # Evaluate array lenght and act based on that
         answer_array=fifo_msg_in.split("|")
-        answer_recipient = '!'+answer_array[0]
-        answer_payload = answer_array[1]+"|"+answer_array[2]
-        send_msg_from_fifo_to_one_node(interface, answer_payload, answer_recipient)
+        # Evaluate array len
+        array_len = len(answer_array)
+        # Send as broadcast by default on Edgemap UI
+        if array_len == 2:
+            send_msg_from_fifo(interface, fifo_msg_in)
+        # Send as individual recipient
+        if array_len == 3:
+            answer_recipient = '!'+answer_array[0]
+            answer_payload = answer_array[1]+"|"+answer_array[2]
+            send_msg_from_fifo_to_one_node(interface, answer_payload, answer_recipient)
         
       else:
         # No fifo data

@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 #
-# meshpipe - server - piping messages to/from FIFO over meshtastic radio
+# meshpipe-server - piping meshmail messages to/from FIFO over meshtastic radio.
 #
 # Copyright (c) Resilience Theatre, 2024
 # Copyright (c) 2021, datagod
 # 
 # FIFO files:
 #
-# /tmp/msgincoming -> meshtastic radio
-# /tmp/msgchannel <- meshtastic radio
+# /tmp/meshmail_in -> meshtastic radio
+# /tmp/meshmail_out <- meshtastic radio
 #
 # Run:
 #
@@ -40,6 +40,7 @@ from pubsub import pub
 from signal import signal, SIGINT
 from sys import exit
 from datetime import datetime
+import os, tempfile
 
 NAME = 'meshpipe'                   
 DESCRIPTION = "FIFO pipe messages from Meshtastic devices"
@@ -130,7 +131,7 @@ def onReceive(packet, interface):
         print("From: {: <20}".format(hexFrom)) 
         print("{: <20} {: <20}".format(hexFrom,Message))
         incomingMessage = str(hexFrom) + "|" + Message + '\n' # 2->1
-        fifo_write = open('/tmp/msgchannel', 'w')
+        fifo_write = open('/tmp/meshmail_out', 'w')
         fifo_write.write(incomingMessage)
         fifo_write.flush()
 
@@ -288,6 +289,14 @@ def DisplayNodes(interface):
       ErrorHandler(ErrorMessage,TraceMessage,AdditionalInfo)
 
 
+def create_fifo_pipe(pipe_path):
+    try:
+        os.mkfifo(pipe_path)
+        print(f"Named pipe created at {pipe_path}")
+    except OSError as e:
+        print(f"Error: {e}")
+
+
 #
 # main 
 #
@@ -322,22 +331,20 @@ def main():
     BaseLat         = 0
     BaseLon         = 0
 
-    # Check fifo files
-    if not os.path.exists('/tmp/msgchannel'):
-        print('Missing fifo file: /tmp/msgchannel')
-        sys.exit()
-    if not os.path.exists('/tmp/msgincoming'):
-        print('Missing fifo file: /tmp/msgincoming')
-        sys.exit()
-    
-    # Check fifo type
-    if not stat.S_ISFIFO(os.stat('/tmp/msgchannel').st_mode):
-        print('/tmp/msgchannel is not fifo file, exiting...')
-        sys.exit()
-    if not stat.S_ISFIFO(os.stat('/tmp/msgincoming').st_mode):
-        print('/tmp/msgincoming is not fifo file, exiting...')
-        sys.exit()
 
+
+
+    # Check fifo files
+    fifo_file='/tmp/meshmail_out'
+    if not os.path.exists(fifo_file):
+        print('Missing fifo file: ',fifo_file)
+        create_fifo_pipe(fifo_file)
+    
+    fifo_file='/tmp/meshmail_in'
+    if not os.path.exists(fifo_file):
+        print('Missing fifo file: ',fifo_file)
+        create_fifo_pipe(fifo_file)
+    
     if (args.host):
       print("Connecting to device on host {}".format(args.host))
       interface = meshtastic.tcp_interface.TCPInterface(args.host)
@@ -357,7 +364,7 @@ def main():
     DisplayNodes(interface)
 
     # Open FIFO for reading
-    FIFO = '/tmp/msgincoming'
+    FIFO = '/tmp/meshmail_in'
 
     # Main loop, reads fifo in and sends data over meshtastic
     fifo_read=open(FIFO,'r')

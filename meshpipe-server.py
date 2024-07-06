@@ -42,8 +42,8 @@ from sys import exit
 from datetime import datetime
 import os, tempfile
 
-NAME = 'meshpipe'                   
-DESCRIPTION = "FIFO pipe messages from Meshtastic devices"
+NAME = 'meshpipe-server'                   
+DESCRIPTION = "FIFO pipe meshmail messages from Meshtastic devices"
 DEBUG = False
 
 parser = argparse.ArgumentParser(description=DESCRIPTION)
@@ -142,7 +142,7 @@ def onConnectionEstablished(interface, topic=pub.AUTO_TOPIC):
     From = "BaseStation"
     To   = "All"
     current_time = datetime.now().strftime("%H:%M:%S")
-    Message = "meshpipe active [{}]".format(current_time)
+    Message = "meshpipe-server active [{}]".format(current_time)
     print("From: {} - {}".format(From,Message,To))
 
     try:
@@ -331,9 +331,6 @@ def main():
     BaseLat         = 0
     BaseLon         = 0
 
-
-
-
     # Check fifo files
     fifo_file='/tmp/meshmail_out'
     if not os.path.exists(fifo_file):
@@ -371,21 +368,17 @@ def main():
 
     while True:
       time.sleep(2)
-      # print('While loop')
       fifo_msg_in = fifo_read.readline()[:-1]
-      # print('after fifo read')
       if not fifo_msg_in == "":
         print('FIFO Message in: ', fifo_msg_in)
         # New method where we parse 'to' and deliver answer only to originating node (who sent 'server')
-        # 7c5a38f8|server|Server got your message
-        # Evaluate array lenght and act based on that
         answer_array=fifo_msg_in.split("|")
         # Evaluate array len
         array_len = len(answer_array)
         # Send as broadcast by default on Edgemap UI
         if array_len == 2:
             send_msg_from_fifo(interface, fifo_msg_in)
-        # Send as individual recipient
+        # Send to individual recipient
         if array_len == 3:
             answer_recipient = '!'+answer_array[0]
             answer_payload = answer_array[1]+"|"+answer_array[2]

@@ -121,19 +121,43 @@ def onReceive(packet, interface):
     Message  = Decoded.get('text')
     To       = packet.get('to')
     From     = packet.get('from')
+    Rssi     = packet.get('rxRssi')
+    Snr      = packet.get('rxSnr')
 
     DecodePacket('MainPacket',packet)
 
     if(Message):
-        print('Incoming message:')
-        # Hex with leading zero (TODO: Check 'server address' write) 
         hexFrom=f"{From:08X}"
-        print("From: {: <20}".format(hexFrom)) 
-        print("{: <20} {: <20}".format(hexFrom,Message))
-        incomingMessage = str(hexFrom) + "|" + Message + '\n' # 2->1
+        print("Incoming message with rxRssi: {: <10} {: <5} {: <20} ".format(hexFrom,Rssi, Message))
+        
+        if "|ping" in Message:
+            # Message contains '\n', strip it before adding data to string
+            incomingMessage = str(hexFrom) + "|" + Message[:-1] + ' rssi:' + str(Rssi) + ' s/n:' + str(Snr) + '\n' 
+        else:
+            incomingMessage = str(hexFrom) + "|" + Message + '\n' # 'original'
+            
         fifo_write = open('/tmp/meshmail_out', 'w')
         fifo_write.write(incomingMessage)
         fifo_write.flush()
+    
+    if(0):
+        hexFrom=f"{From:08X}"
+        print("Incoming rxRssi: {: <20} {: <20}".format(hexFrom,Rssi))
+        if(Message):
+            print("Incoming rxRssi message: {: <20}".format(Message))
+            incomingMessage = str(hexFrom) + "|" + Message + ',' + str(Rssi) + '\n'
+            fifo_write = open('/tmp/meshmail_out', 'w')
+            fifo_write.write(incomingMessage)
+            fifo_write.flush()
+        
+        # Hex with leading zero (TODO: Check 'server address' write) 
+        # hexFrom=f"{From:08X}"
+        # print("From: {: <20}".format(hexFrom)) 
+        # print("{: <20} {: <20} {}".format(hexFrom,Message,Rssi))
+        #incomingMessage = str(hexFrom) + "|" + message + '\n' # 2->1
+        #fifo_write = open('/tmp/meshmail_out', 'w')
+        #fifo_write.write(incomingMessage)
+        #fifo_write.flush()
 
 
 def onConnectionEstablished(interface, topic=pub.AUTO_TOPIC): 

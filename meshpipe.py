@@ -157,56 +157,61 @@ def onReceive(packet, interface):
     
     PacketsReceived = PacketsReceived + 1
     Decoded  = packet.get('decoded')
-    Message  = Decoded.get('text')
     To       = packet.get('to')
     From     = packet.get('from')
     
     DecodePacket('MainPacket',packet)
-    fromIdentString= packet.get('fromId')
-    fromIdent = fromIdentString[1:]
+    if packet is not None:
+        fromIdentString = packet.get('fromId')
+        if fromIdentString is not None:
+            fromIdent = fromIdentString[1:]
     
-    if(fromIdent):
-        # print('** Packet from: {}'.format(fromIdent))
-        # print('** battery: {}'.format(DeviceBat))
-        # print('** air util: {}'.format( DeviceAirUtilTx ))
-        # print('** RxSnr: {}'.format(DeviceRxSnr))
-        # print('** HopLimit: {}'.format(DeviceHopLimit))
-        # print('** rxRssi: {}'.format(DeviceRxRssi))
-        
-        # Update UI
-        if DeviceBat is None: 
-            DeviceBat='-'
-        if DeviceAirUtilTx is None: 
-            DeviceAirUtilTx='-'
-        if DeviceRxSnr is None: 
-            DeviceRxSnr='-'
-        if DeviceHopLimit is None: 
-            DeviceHopLimit='-'
-        if DeviceRxRssi is None: 
-            DeviceRxRssi='-'
-        
-        meshtasticmessage = "peernode," + fromIdent + "," + str(DeviceBat) + "," + str(DeviceAirUtilTx) + "," + str(DeviceRxSnr) + "," + str(DeviceHopLimit) + "," + str(DeviceRxRssi)
-        fifo_write = open('/tmp/statusin', 'w')
-        fifo_write.write(meshtasticmessage)
-        fifo_write.flush()
+            if(fromIdent):
+                # print('** Packet from: {}'.format(fromIdent))
+                # print('** battery: {}'.format(DeviceBat))
+                # print('** air util: {}'.format( DeviceAirUtilTx ))
+                # print('** RxSnr: {}'.format(DeviceRxSnr))
+                # print('** HopLimit: {}'.format(DeviceHopLimit))
+                # print('** rxRssi: {}'.format(DeviceRxRssi))
+                
+                # Update UI
+                if DeviceBat is None: 
+                    DeviceBat='-'
+                if DeviceAirUtilTx is None: 
+                    DeviceAirUtilTx='-'
+                if DeviceRxSnr is None: 
+                    DeviceRxSnr='-'
+                if DeviceHopLimit is None: 
+                    DeviceHopLimit='-'
+                if DeviceRxRssi is None: 
+                    DeviceRxRssi='-'
+                
+                meshtasticmessage = "peernode," + fromIdent + "," + str(DeviceBat) + "," + str(DeviceAirUtilTx) + "," + str(DeviceRxSnr) + "," + str(DeviceHopLimit) + "," + str(DeviceRxRssi)
+                fifo_write = open('/tmp/statusin', 'w')
+                fifo_write.write(meshtasticmessage)
+                fifo_write.flush()
 
-    if(Message):
-        hexFromValue = "{0:0>8X}".format(From)
-        print("Incoming: {: <20} {: <20}".format(hexFromValue,Message))
-        fifo_write = open('/tmp/msgchannel', 'w')
-        fifo_write.write(Message)
-        fifo_write.flush()
-        if( fromIdent.upper() == hexFromValue ):
-            # edgex|trackMarker|23.6406054,50.7603593|GPS-snapshot
-            messageFields = Message.split('|')
-            if ( messageFields[1] == "trackMarker" ):            
-                messagePositionFields = messageFields[2].split(',')
-                lon = messagePositionFields[0]
-                lat = messagePositionFields[1] # done
-                callsign = messageFields[0]
-                messageType = messageFields[1]
-                # print("Meshtastic data to DB: {: <10} {: <10} {: <10} {: <10} {: <10} {: <10}".format(callsign,lat,lon,hexFromValue,DeviceRxSnr,DeviceRxRssi))
-                meshtasticDbUpdate(callsign,lat,lon,"trackMarker",hexFromValue,DeviceRxSnr,DeviceRxRssi)
+    if Decoded is not None:
+        Message  = Decoded.get('text')
+        if(Message):
+            hexFromValue = "{0:0>8X}".format(From)
+            print("Incoming: {: <20} {: <20}".format(hexFromValue,Message))
+            fifo_write = open('/tmp/msgchannel', 'w')
+            fifo_write.write(Message)
+            fifo_write.flush()
+            if( fromIdent.upper() == hexFromValue ):
+                # edgex|trackMarker|23.6406054,50.7603593|GPS-snapshot
+                messageFields = Message.split('|')
+                print("messageFileds count: ", len(messageFields) )
+                if len(messageFields) > 1:
+                    if ( messageFields[1] == "trackMarker" ):
+                        messagePositionFields = messageFields[2].split(',')
+                        lon = messagePositionFields[0]
+                        lat = messagePositionFields[1] # done
+                        callsign = messageFields[0]
+                        messageType = messageFields[1]
+                        # print("Meshtastic data to DB: {: <10} {: <10} {: <10} {: <10} {: <10} {: <10}".format(callsign,lat,lon,hexFromValue,DeviceRxSnr,DeviceRxRssi))
+                        meshtasticDbUpdate(callsign,lat,lon,"trackMarker",hexFromValue,DeviceRxSnr,DeviceRxRssi)
 
 def meshtasticDbCreate():
     connection = sqlite3.connect("/tmp/radio.db")
@@ -596,7 +601,7 @@ def read_incoming_fifo():
             send_msg_from_fifo_to_one_node(interface, answer_payload, answer_recipient)
       else:
         # No fifo data
-        print('While loop: no fifo data')
+        # print('While loop: no fifo data')
         pass
 
 #
@@ -636,24 +641,36 @@ def main():
 
     # Check fifo files
     fifo_file='/tmp/msgchannel'
+    if not os.path.isfile(fifo_file):
+        print('Creating fifo file: ',fifo_file)
+        create_fifo_pipe(fifo_file)
     if not stat.S_ISFIFO(os.stat(fifo_file).st_mode):
-        print('Missing fifo file: ',fifo_file)
+        print('re-creating fifo file: ',fifo_file)
         os.remove(fifo_file)
         create_fifo_pipe(fifo_file)
     
     fifo_file='/tmp/msgincoming'
+    if not os.path.isfile(fifo_file):
+        print('Creating fifo file: ',fifo_file)
+        create_fifo_pipe(fifo_file)
     if not stat.S_ISFIFO(os.stat(fifo_file).st_mode):
         print('Missing fifo file: ',fifo_file)
         os.remove(fifo_file)
         create_fifo_pipe(fifo_file)
 
     fifo_file='/tmp/statusin'
+    if not os.path.isfile(fifo_file):
+        print('Creating fifo file: ',fifo_file)
+        create_fifo_pipe(fifo_file)
     if not stat.S_ISFIFO(os.stat(fifo_file).st_mode):
         print('Missing fifo file: ',fifo_file)
         os.remove(fifo_file)
         create_fifo_pipe(fifo_file)
 
     fifo_file='/tmp/livegps'
+    if not os.path.isfile(fifo_file):
+        print('Creating fifo file: ',fifo_file)
+        create_fifo_pipe(fifo_file)
     if not stat.S_ISFIFO(os.stat(fifo_file).st_mode):
         print('Missing fifo file: ',fifo_file)
         os.remove(fifo_file)

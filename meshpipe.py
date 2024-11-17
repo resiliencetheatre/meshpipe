@@ -464,9 +464,9 @@ def create_fifo_pipe(pipe_path):
 def read_manual_gps():
     global myRadioHexId
     global interface # Nov 16th
-    # Time: 5 - 10 min
-    min_interval_time=60
-    max_interval_time=120
+    # Randomize time
+    min_interval_time=120
+    max_interval_time=240
 
     print("Starting read_manual_gps()")
     sys.stdout.flush()
